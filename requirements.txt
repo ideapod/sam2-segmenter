@@ -1,0 +1,6 @@
+sam2
+torch
+torchvision
+numpy
+Pillow
+matplotlib

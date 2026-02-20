@@ -1,0 +1,15 @@
+name: sam2-segmenter
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - sam2
+    - torch
+    - torchvision
+    - numpy
+    - Pillow
+    - matplotlib
