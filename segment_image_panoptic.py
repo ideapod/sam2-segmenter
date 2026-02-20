@@ -220,9 +220,11 @@ def refine_mask_with_sam2(predictor, image_rgb: np.ndarray, coarse_mask: np.ndar
     # Pick the mask that best overlaps with the coarse mask
     best_idx = 0
     best_iou = -1.0
+    coarse_bool = coarse_mask.astype(bool)
     for i, m in enumerate(masks):
-        intersection = (m & coarse_mask).sum()
-        union = (m | coarse_mask).sum()
+        m_bool = m.astype(bool)
+        intersection = (m_bool & coarse_bool).sum()
+        union = (m_bool | coarse_bool).sum()
         iou = intersection / union if union > 0 else 0.0
         if iou > best_iou:
             best_iou = iou
@@ -232,7 +234,7 @@ def refine_mask_with_sam2(predictor, image_rgb: np.ndarray, coarse_mask: np.ndar
     if best_iou < 0.5:
         return coarse_mask
 
-    return masks[best_idx].astype(bool)
+    return masks[best_idx].astype(bool)  # always return bool
 
 
 # ---------------------------------------------------------------------------
