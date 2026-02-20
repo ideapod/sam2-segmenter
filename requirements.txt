@@ -4,3 +4,4 @@ torchvision
 numpy
 Pillow
 matplotlib
+opencv-python-headless
