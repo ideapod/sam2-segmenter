@@ -173,8 +173,48 @@ def load_sam2(checkpoint_path=None, model_cfg=None, preset_cfg=None):
 
 def generate_masks(mask_generator, image_rgb: np.ndarray) -> list:
     """Run SAM2 automatic segmentation and return sorted masks (largest first)."""
-    print("Generating masks (this may take a moment)...")
+    import threading
+    import time
+
+    h, w = image_rgb.shape[:2]
+    points_per_side = mask_generator.points_per_side
+    total_points = points_per_side * points_per_side
+
+    # Rough time estimate: ~0.5ms per point per megapixel on MPS/CUDA
+    megapixels = (h * w) / 1_000_000
+    est_seconds = max(10, int(total_points * megapixels * 0.5))
+    est_str = f"~{est_seconds}s" if est_seconds < 60 else f"~{est_seconds // 60}m{est_seconds % 60:02d}s"
+
+    print(f"Generating masks...")
+    print(f"  Image size : {w}x{h} ({megapixels:.1f} MP)")
+    print(f"  Grid       : {points_per_side}x{points_per_side} = {total_points} sample points")
+    print(f"  Estimated  : {est_str} (varies by hardware)")
+    print(f"  Progress   : ", end="", flush=True)
+
+    # Spinner thread — prints a dot every 5 seconds while SAM2 is running
+    done = threading.Event()
+
+    def spinner():
+        start = time.time()
+        while not done.is_set():
+            time.sleep(5)
+            if not done.is_set():
+                elapsed = int(time.time() - start)
+                print(f".", end="", flush=True)
+                if elapsed % 30 == 0 and elapsed > 0:
+                    print(f" [{elapsed}s]", end="", flush=True)
+
+    t = threading.Thread(target=spinner, daemon=True)
+    t.start()
+
+    start = time.time()
     masks = mask_generator.generate(image_rgb)
+    elapsed = time.time() - start
+
+    done.set()
+    t.join(timeout=1)
+    print(f" done ({elapsed:.1f}s)")
+
     # Sort by area descending so the most prominent objects come first
     masks = sorted(masks, key=lambda m: m["area"], reverse=True)
     print(f"✓ Found {len(masks)} segments")
@@ -201,6 +241,7 @@ def save_output(image_path: str, image_rgb: np.ndarray, masks: list, output_dir:
 
     h, w = image_rgb.shape[:2]
 
+    total = len(masks)
     for idx, mask_data in enumerate(masks):
         binary = mask_data["segmentation"].astype(np.uint8)  # H x W, values 0/1
 
@@ -212,6 +253,12 @@ def save_output(image_path: str, image_rgb: np.ndarray, masks: list, output_dir:
         out_path = os.path.join(output_dir, f"{idx}.png")
         Image.fromarray(rgba, mode="RGBA").save(out_path)
 
+        # Progress bar
+        pct = (idx + 1) / total
+        bar = ("█" * int(pct * 20)).ljust(20)
+        print(f"\r  Saving masks: [{bar}] {idx+1}/{total}", end="", flush=True)
+
+    print()  # newline after progress bar
     print(f"✓ {len(masks)} masks saved to: {output_dir}")
 
 
