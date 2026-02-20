@@ -171,13 +171,12 @@ def load_sam2(checkpoint_path=None, model_cfg=None, preset_cfg=None):
     return mask_generator
 
 
-def generate_masks(mask_generator, image_rgb: np.ndarray) -> list:
+def generate_masks(mask_generator, image_rgb: np.ndarray, points_per_side: int = 32) -> list:
     """Run SAM2 automatic segmentation and return sorted masks (largest first)."""
     import threading
     import time
 
     h, w = image_rgb.shape[:2]
-    points_per_side = mask_generator.points_per_side
     total_points = points_per_side * points_per_side
 
     # Rough time estimate: ~0.5ms per point per megapixel on MPS/CUDA
@@ -362,7 +361,7 @@ def main():
 
     # Load SAM2 and generate masks (run on preprocessed image)
     mask_generator = load_sam2(args.checkpoint, args.model_cfg, preset_cfg)
-    masks = generate_masks(mask_generator, image_processed)
+    masks = generate_masks(mask_generator, image_processed, points_per_side=preset_cfg["points_per_side"])
 
     if args.max_masks:
         masks = masks[: args.max_masks]
