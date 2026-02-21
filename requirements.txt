@@ -8,3 +8,4 @@ opencv-python-headless
 transformers
 accelerate
 scipy
+anthropic

@@ -1,0 +1,39 @@
+# Grounding DINO prompt file for historical street scenes.
+# One phrase per line. Blank lines and lines starting with # are ignored.
+# These are dot-joined and passed to Grounding DINO as a single text query.
+# Edit freely — add or remove terms to suit your images.
+
+building
+shop front
+hotel
+church
+house
+facade
+
+horse
+horse-drawn cart
+horse-drawn carriage
+wagon
+dray
+buggy
+coach
+
+person
+man
+woman
+child
+
+tree
+lamp post
+telegraph pole
+fence
+gate
+wall
+sign
+awning
+verandah
+
+road
+footpath
+dirt road
+sky
