@@ -280,14 +280,25 @@ def run_grounding_dino(image_pil: Image.Image, prompt: str, device: str,
         inputs = {k: v.to(dino_device) for k, v in inputs.items()}
         outputs = model(**inputs)
 
-    # Post-process
-    results = processor.post_process_grounded_object_detection(
-        outputs,
-        inputs["input_ids"],
-        box_threshold=box_threshold,
-        text_threshold=text_threshold,
-        target_sizes=[image_pil.size[::-1]],   # (H, W)
-    )[0]
+    # Post-process — API differs between transformers versions
+    try:
+        # Newer transformers (4.44+)
+        results = processor.post_process_grounded_object_detection(
+            outputs,
+            inputs["input_ids"],
+            threshold=box_threshold,
+            text_threshold=text_threshold,
+            target_sizes=[image_pil.size[::-1]],
+        )[0]
+    except TypeError:
+        # Older transformers
+        results = processor.post_process_grounded_object_detection(
+            outputs,
+            inputs["input_ids"],
+            box_threshold=box_threshold,
+            text_threshold=text_threshold,
+            target_sizes=[image_pil.size[::-1]],
+        )[0]
 
     detections = []
     w, h = image_pil.size
