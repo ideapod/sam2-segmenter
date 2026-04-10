@@ -132,11 +132,11 @@ def generate_prompt_llm(image_path: str, output_dir: str) -> str:
     client = anthropic.Anthropic(api_key=api_key)
 
     system_prompt = """You are an expert at analysing historical photographs for computer vision segmentation.
-Your task is to identify every distinct object or region in an image that should be segmented separately for 3D reconstruction.
-Focus on objects that have physical depth and would benefit from individual 3D treatment.
+Your task is to identify every distinct physical object in an image that should be segmented separately for 3D reconstruction.
+Focus on objects with real physical depth and volume. Be thorough — look carefully for partially visible, small, or low-contrast objects.
 Be specific but concise — use simple noun phrases that a vision model can match."""
 
-    user_prompt = """Please analyse this historical photograph and list every distinct object or region that should be segmented separately for 3D scene reconstruction.
+    user_prompt = """Please analyse this historical photograph and list every distinct physical object that should be segmented separately for 3D scene reconstruction.
 
 Return your response in this exact JSON format:
 {
@@ -148,11 +148,14 @@ Return your response in this exact JSON format:
 }
 
 Guidelines:
-- Each entry should be a simple noun phrase (e.g. "horse-drawn cart", "building facade", "person")
-- Include background regions like "sky", "road", "dirt ground" as they are needed for scene completion
-- If there are multiple instances of the same type (e.g. two carts), list the type once — the detector will find all instances
-- Aim for 10-25 objects total
-- Think about what a 3D reconstruction would need as separate elements"""
+- Each entry should be a simple noun phrase (e.g. "horse-drawn cart", "building facade", "person sitting on wagon")
+- DO NOT include flat background regions like sky, road, ground, dirt, pavement — these produce artefacts in 3D reconstruction
+- DO include: buildings, vehicles, animals, people (even drivers/passengers on vehicles), fences, poles, signs, trees
+- Look carefully for people sitting on or driving vehicles — list them separately (e.g. "driver on wagon seat", "passenger on cart")
+- Look for animals attached to vehicles (e.g. "draft horse", "horse pulling cart")
+- Look for foreground objects like fences, gates, bollards, lamp posts
+- If there are multiple distinct instances of the same type, list each separately (e.g. "delivery wagon", "passenger buggy")
+- Aim for 10-20 objects total"""
 
     response = client.messages.create(
         model="claude-opus-4-5",
