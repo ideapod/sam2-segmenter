@@ -150,6 +150,8 @@ Return your response in this exact JSON format:
 Guidelines:
 - Each entry should be a simple noun phrase (e.g. "horse-drawn cart", "building facade", "person sitting on wagon")
 - DO NOT include flat background regions like sky, road, ground, dirt, pavement — these produce artefacts in 3D reconstruction
+- ALWAYS include the main/dominant building or structure as a whole, even if it is large. Use a phrase like "large victorian building" or "main building facade". Do not just describe a small distinctive part (e.g. a tower or balcony) and omit the overall structure.
+- If a building has a distinctive tower or ornate section AND a large main body, list them as SEPARATE objects: e.g. "corner tower" and "main building facade"
 - DO include: buildings, vehicles, animals, people (even drivers/passengers on vehicles), fences, poles, signs, trees
 - Look carefully for people sitting on or driving vehicles — list them separately (e.g. "driver on wagon seat", "passenger on cart")
 - Look for animals attached to vehicles (e.g. "draft horse", "horse pulling cart")
