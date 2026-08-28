@@ -160,47 +160,68 @@ Guidelines:
 - If there are multiple distinct instances of the same type, list each separately (e.g. "delivery wagon", "passenger buggy")
 - Aim for 10-20 objects total"""
 
-    response = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1024,
-        system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": img_b64,
+    # Retry the call itself if the response doesn't parse as the expected
+    # JSON shape — a single malformed/truncated response used to fall straight
+    # through to a crude line-by-line extraction (see below), which can pick
+    # up unrelated fragments of the prompt/response formatting instead of
+    # real object phrases. Re-asking Claude is cheap and far more reliable
+    # than trying to salvage a bad response.
+    max_attempts = 3
+    raw_text = None
+    scene_desc = ""
+    objects = []
+    phrases = []
+    parse_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        response = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": img_b64,
+                            },
                         },
-                    },
-                    {"type": "text", "text": user_prompt},
-                ],
-            }
-        ],
-    )
+                        {"type": "text", "text": user_prompt},
+                    ],
+                }
+            ],
+        )
+        raw_text = response.content[0].text
+        print(f"✓ Claude response received (attempt {attempt}/{max_attempts})")
 
-    raw_text = response.content[0].text
-    print(f"✓ Claude response received")
+        try:
+            # Handle markdown code blocks if present
+            text = raw_text
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
 
-    # Parse JSON from response
-    try:
-        # Handle markdown code blocks if present
-        text = raw_text
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
+            data = json.loads(text)
+            scene_desc = data.get("scene_description", "")
+            objects = data.get("objects", [])
+            phrases = [o["phrase"] for o in objects if "phrase" in o]
+            parse_error = None
+            break
+        except (json.JSONDecodeError, KeyError) as e:
+            parse_error = e
+            print(f"⚠ Attempt {attempt}/{max_attempts}: could not parse JSON response: {e}")
 
-        data = json.loads(text)
-        scene_desc = data.get("scene_description", "")
-        objects = data.get("objects", [])
-        phrases = [o["phrase"] for o in objects if "phrase" in o]
-    except (json.JSONDecodeError, KeyError) as e:
-        print(f"⚠ Could not parse JSON response: {e}")
-        print("  Falling back to line-by-line extraction")
+    if parse_error is not None:
+        # All retries produced an unparseable response — fall back to a
+        # crude line-by-line extraction rather than failing the whole job,
+        # but this is a degraded result and should be visible as such.
+        print(f"⚠ All {max_attempts} attempts failed to parse — "
+              f"falling back to line-by-line extraction")
         phrases = []
         for line in raw_text.split("\n"):
             line = line.strip().strip("-•*").strip()
@@ -210,9 +231,17 @@ Guidelines:
         objects = [{"phrase": p, "reason": ""} for p in phrases]
 
     if not phrases:
+        # Raise rather than sys.exit(1): this function is imported and
+        # called directly inside the sam3d-api Celery worker process (no
+        # subprocess boundary — see sam3d_api/segmentation.py), so exiting
+        # the interpreter here would kill the whole worker, not just fail
+        # this one job.
         print("✗ No phrases extracted from LLM response.")
         print("Raw response:", raw_text)
-        sys.exit(1)
+        raise RuntimeError(
+            f"generate_prompt_llm: no phrases extracted from LLM response "
+            f"after {max_attempts} attempt(s). Raw response: {raw_text[:500]!r}"
+        )
 
     # Save to output file for review
     os.makedirs(output_dir, exist_ok=True)
